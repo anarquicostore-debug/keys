@@ -90,11 +90,11 @@ async function startBot() {
                 console.log('💾 View-once guardada:', msg.key.id)
             }
 
-            if (msg.key.fromMe) continue
-
             const ctx = msg.message?.extendedTextMessage?.contextInfo
             const quotedMsg = ctx?.quotedMessage
             const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || ''
+
+            if (text.trim()) console.log('💬 Mensagem:', JSON.stringify(text.trim()), 'fromMe:', msg.key.fromMe, 'temQuote:', !!ctx?.stanzaId)
 
             if (text.trim().toLowerCase() === KEYWORD.toLowerCase() && ctx?.stanzaId) {
                 console.log('🔑 Palavra-chave recebida, procurando view-once...')
