@@ -7,8 +7,6 @@ const PHONE_NUMBER = '556692319913'
 const KEYWORD = 'Hm'
 const AUTH_FOLDER = './auth_info'
 
-let pairingCodeRequested = false
-
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
 
@@ -17,17 +15,17 @@ async function startBot() {
         printQRInTerminal: false,
     })
 
-    if (!sock.authState.creds.registered && !pairingCodeRequested) {
-        pairingCodeRequested = true
+    const registered = sock.authState.creds.registered
+
+    if (!registered) {
         await new Promise(r => setTimeout(r, 2000))
         try {
             const code = await sock.requestPairingCode(PHONE_NUMBER)
             console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
             console.log('👉 WhatsApp → Aparelhos conectados → Conectar com número → Digite o código\n')
-            console.log('⏳ Aguardando você digitar o código no WhatsApp...\n')
+            console.log('⏳ Aguardando pareamento... (não feche)\n')
         } catch (err) {
             console.error('Erro ao solicitar código:', err.message)
-            pairingCodeRequested = false
         }
     }
 
@@ -40,13 +38,20 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            const code = lastDisconnect?.error?.output?.statusCode
-            const loggedOut = code === DisconnectReason.loggedOut
-            if (!loggedOut) {
+            const statusCode = lastDisconnect?.error?.output?.statusCode
+            if (statusCode === DisconnectReason.loggedOut) {
+                console.log('❌ Deslogado. Delete auth_info e rode novamente.')
+                return
+            }
+            // Só reconecta se já estava registrado
+            if (sock.authState.creds.registered) {
                 console.log('🔄 Reconectando...')
                 startBot()
             } else {
-                console.log('❌ Deslogado. Delete a pasta auth_info e rode novamente.')
+                // Aguarda e tenta novamente com as mesmas chaves salvas
+                console.log('🔄 Reconectando para aguardar pareamento...')
+                await new Promise(r => setTimeout(r, 3000))
+                startBot()
             }
         }
     })
