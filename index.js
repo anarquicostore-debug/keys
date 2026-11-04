@@ -1,31 +1,38 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys')
-const fs = require('fs')
-const path = require('path')
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys')
 
 const MY_NUMBER = '556692319913@s.whatsapp.net'
 const PHONE_NUMBER = '556692319913'
 const KEYWORD = 'Hm'
 const AUTH_FOLDER = './auth_info'
 
+let codeShown = false
+
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
+    const { version } = await fetchLatestBaileysVersion()
+    console.log('📦 Versão WhatsApp Web:', version.join('.'))
 
     const sock = makeWASocket({
+        version,
         auth: state,
+        browser: Browsers.ubuntu('Chrome'),
         printQRInTerminal: false,
     })
 
-    const registered = sock.authState.creds.registered
-
-    if (!registered) {
-        await new Promise(r => setTimeout(r, 2000))
+    if (!sock.authState.creds.registered && !codeShown) {
+        codeShown = true
+        await new Promise(r => setTimeout(r, 4000))
         try {
             const code = await sock.requestPairingCode(PHONE_NUMBER)
-            console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
-            console.log('👉 WhatsApp → Aparelhos conectados → Conectar com número → Digite o código\n')
-            console.log('⏳ Aguardando pareamento... (não feche)\n')
+            const formatted = code?.match(/.{1,4}/g)?.join('-') || code
+            console.log('\n==============================')
+            console.log('🔑 SEU CÓDIGO: ' + formatted)
+            console.log('==============================\n')
+            console.log('👉 WhatsApp → Aparelhos conectados → Conectar com número → digite o código')
+            console.log('⏳ Digite RÁPIDO (expira em ~1 min). Não feche o terminal.\n')
         } catch (err) {
             console.error('Erro ao solicitar código:', err.message)
+            codeShown = false
         }
     }
 
@@ -43,16 +50,9 @@ async function startBot() {
                 console.log('❌ Deslogado. Delete auth_info e rode novamente.')
                 return
             }
-            // Só reconecta se já estava registrado
-            if (sock.authState.creds.registered) {
-                console.log('🔄 Reconectando...')
-                startBot()
-            } else {
-                // Aguarda e tenta novamente com as mesmas chaves salvas
-                console.log('🔄 Reconectando para aguardar pareamento...')
-                await new Promise(r => setTimeout(r, 3000))
-                startBot()
-            }
+            console.log('🔄 Reconectando...')
+            await new Promise(r => setTimeout(r, 2000))
+            startBot()
         }
     })
 
