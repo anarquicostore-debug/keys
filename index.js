@@ -1,5 +1,4 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys')
-const readline = require('readline')
 const fs = require('fs')
 const path = require('path')
 
@@ -8,10 +7,7 @@ const PHONE_NUMBER = '556692319913'
 const KEYWORD = 'Hm'
 const AUTH_FOLDER = './auth_info'
 
-function question(prompt) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-    return new Promise(resolve => rl.question(prompt, ans => { rl.close(); resolve(ans.trim()) }))
-}
+let pairingCodeRequested = false
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
@@ -21,15 +17,17 @@ async function startBot() {
         printQRInTerminal: false,
     })
 
-    if (!sock.authState.creds.registered) {
-        console.log('\n📲 Solicitando código de pareamento para +' + PHONE_NUMBER + '...')
-        await new Promise(r => setTimeout(r, 3000))
+    if (!sock.authState.creds.registered && !pairingCodeRequested) {
+        pairingCodeRequested = true
+        await new Promise(r => setTimeout(r, 2000))
         try {
             const code = await sock.requestPairingCode(PHONE_NUMBER)
             console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
-            console.log('👉 Abra o WhatsApp → Aparelhos conectados → Conectar com número de telefone → Digite o código acima\n')
+            console.log('👉 WhatsApp → Aparelhos conectados → Conectar com número → Digite o código\n')
+            console.log('⏳ Aguardando você digitar o código no WhatsApp...\n')
         } catch (err) {
             console.error('Erro ao solicitar código:', err.message)
+            pairingCodeRequested = false
         }
     }
 
@@ -42,10 +40,13 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-            console.log('❌ Conexão encerrada. Reconectando:', shouldReconnect)
-            if (shouldReconnect) {
+            const code = lastDisconnect?.error?.output?.statusCode
+            const loggedOut = code === DisconnectReason.loggedOut
+            if (!loggedOut) {
+                console.log('🔄 Reconectando...')
                 startBot()
+            } else {
+                console.log('❌ Deslogado. Delete a pasta auth_info e rode novamente.')
             }
         }
     })
@@ -69,7 +70,6 @@ async function startBot() {
 
                 if (viewOnceImage) {
                     console.log('🔍 Visualização única detectada, extraindo foto...')
-
                     try {
                         const quotedKey = msg.message.extendedTextMessage.contextInfo
                         const fakeMsg = {
@@ -88,22 +88,15 @@ async function startBot() {
                             reuploadRequest: sock.updateMediaMessage,
                         })
 
-                        const fileName = `view_once_${Date.now()}.jpg`
-                        const filePath = path.join(__dirname, fileName)
-                        fs.writeFileSync(filePath, buffer)
-
                         await sock.sendMessage(MY_NUMBER, {
                             image: buffer,
                             caption: '📸 Foto de visualização única extraída!',
                         })
 
-                        console.log(`✅ Foto enviada para ${MY_NUMBER}`)
-                        fs.unlinkSync(filePath)
+                        console.log('✅ Foto enviada!')
                     } catch (err) {
-                        console.error('Erro ao extrair foto:', err)
+                        console.error('Erro ao extrair foto:', err.message)
                     }
-                } else {
-                    console.log('⚠️  Mensagem citada não contém imagem de visualização única.')
                 }
             }
         }
