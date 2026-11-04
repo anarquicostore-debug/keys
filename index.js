@@ -1,11 +1,17 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys')
-const qrcode = require('qrcode-terminal')
+const readline = require('readline')
 const fs = require('fs')
 const path = require('path')
 
 const MY_NUMBER = '556692319913@s.whatsapp.net'
+const PHONE_NUMBER = '556692319913'
 const KEYWORD = 'Hm'
 const AUTH_FOLDER = './auth_info'
+
+function question(prompt) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    return new Promise(resolve => rl.question(prompt, ans => { rl.close(); resolve(ans.trim()) }))
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
@@ -15,12 +21,21 @@ async function startBot() {
         printQRInTerminal: false,
     })
 
+    let pairingRequested = false
+
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update
 
-        if (qr) {
-            console.log('\n📱 Escaneie o QR Code abaixo com o WhatsApp:\n')
-            qrcode.generate(qr, { small: true })
+        if (qr && !pairingRequested) {
+            pairingRequested = true
+            console.log('\n📲 Solicitando código de pareamento para +' + PHONE_NUMBER + '...')
+            try {
+                const code = await sock.requestPairingCode(PHONE_NUMBER)
+                console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
+                console.log('👉 Abra o WhatsApp → Aparelhos conectados → Conectar com número de telefone → Digite o código acima\n')
+            } catch (err) {
+                console.error('Erro ao solicitar código:', err.message)
+            }
         }
 
         if (connection === 'open') {
