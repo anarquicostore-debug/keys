@@ -21,22 +21,20 @@ async function startBot() {
         printQRInTerminal: false,
     })
 
-    let pairingRequested = false
+    if (!sock.authState.creds.registered) {
+        console.log('\n📲 Solicitando código de pareamento para +' + PHONE_NUMBER + '...')
+        await new Promise(r => setTimeout(r, 3000))
+        try {
+            const code = await sock.requestPairingCode(PHONE_NUMBER)
+            console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
+            console.log('👉 Abra o WhatsApp → Aparelhos conectados → Conectar com número de telefone → Digite o código acima\n')
+        } catch (err) {
+            console.error('Erro ao solicitar código:', err.message)
+        }
+    }
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update
-
-        if (qr && !pairingRequested) {
-            pairingRequested = true
-            console.log('\n📲 Solicitando código de pareamento para +' + PHONE_NUMBER + '...')
-            try {
-                const code = await sock.requestPairingCode(PHONE_NUMBER)
-                console.log('\n🔑 SEU CÓDIGO: ' + code + '\n')
-                console.log('👉 Abra o WhatsApp → Aparelhos conectados → Conectar com número de telefone → Digite o código acima\n')
-            } catch (err) {
-                console.error('Erro ao solicitar código:', err.message)
-            }
-        }
+        const { connection, lastDisconnect } = update
 
         if (connection === 'open') {
             console.log('✅ Conectado ao WhatsApp!')
